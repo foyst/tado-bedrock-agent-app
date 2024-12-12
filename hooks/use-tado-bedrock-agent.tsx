@@ -7,9 +7,11 @@ import {
   InvokeAgentRequest,
   RetrieveCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
+import { AccessToken } from "simple-oauth2";
+import { Tado } from "@/lib/tado/tado";
 
 // const client = new BedrockAgentRuntimeClient({ region: "REGION" });
-const client = new BedrockAgentRuntimeClient({
+const bedrockClient = new BedrockAgentRuntimeClient({
   region: "us-east-1",
   credentials: {
     accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID!,
@@ -18,7 +20,7 @@ const client = new BedrockAgentRuntimeClient({
   },
 });
 
-export function useTadoBedrockAgent() {
+export function useTadoBedrockAgent(tadoToken: AccessToken) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [input, setInput] = useState<string>("");
@@ -38,6 +40,12 @@ export function useTadoBedrockAgent() {
     // Append response to messages
     // Profit
 
+    const tadoClient = new Tado(
+      process.env.NEXT_PUBLIC_TADO_USERNAME!,
+      process.env.NEXT_PUBLIC_TADO_PASSWORD!
+    );
+    tadoClient.accessToken = tadoToken;
+
     const agentInput: InvokeAgentRequest = {
       agentId: "NA6YAHIZYV",
       agentAliasId: "SCDHRJKTIV",
@@ -46,10 +54,7 @@ export function useTadoBedrockAgent() {
     };
 
     const command = new InvokeAgentCommand(agentInput);
-    const response = await client.send(command);
-
-    // setTimeout(() => {
-    // console.log("appending response");
+    const response = await bedrockClient.send(command);
 
     if (response.completion === undefined) {
       throw new Error("Completion is undefined");
@@ -61,6 +66,21 @@ export function useTadoBedrockAgent() {
       if (chunkEvent.returnControl !== undefined) {
         console.log("Return control event received");
         console.log(chunkEvent.returnControl);
+
+        const url =
+          chunkEvent.returnControl.invocationInputs![0].apiInvocationInput!
+            .apiPath!;
+        const parameterisedUrl = url.replace("{homeId}", process.env.HOME_ID!);
+        const method = chunkEvent.returnControl.invocationInputs![0]
+          .apiInvocationInput!.httpMethod! as "GET" | "POST";
+        const data = {};
+        const response = await tadoClient.apiCall(
+          parameterisedUrl,
+          method,
+          data
+        );
+
+        console.log("response from tado", response);
         break;
       }
 
