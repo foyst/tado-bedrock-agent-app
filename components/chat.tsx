@@ -15,26 +15,8 @@ import { BlockStreamHandler } from "./block-stream-handler";
 import { MultimodalInput } from "./multimodal-input";
 import { Overview } from "./overview";
 import { useTadoBedrockAgent } from "@/hooks/use-tado-bedrock-agent";
-import { AccessToken, ResourceOwnerPassword } from "simple-oauth2";
-interface ChatProps {
-  tadoToken: string;
-}
 
-// TODO: This is duplicated from node-tado-client, should be moved to a shared location
-const tadoAuthUrl = "https://auth.tado.com";
-const tadoConfig = {
-  client: {
-    id: "tado-web-app",
-    secret: "wZaRN7rpjn3FoNyF5IFuxg9uMzYJcvOoQ8QWiIqS3hfk6gLhVlG57j5YNoZL2Rtc",
-  },
-  auth: {
-    tokenHost: tadoAuthUrl,
-  },
-};
-
-const oauthClient = new ResourceOwnerPassword(tadoConfig);
-
-export function Chat({ tadoToken }: ChatProps) {
+export function Chat() {
   const { mutate } = useSWRConfig();
 
   const {
@@ -48,7 +30,7 @@ export function Chat({ tadoToken }: ChatProps) {
     isLoading,
     stop,
     data: streamingData,
-  } = useTadoBedrockAgent(oauthClient.createToken(JSON.parse(tadoToken)));
+  } = useTadoBedrockAgent();
 
   const { width: windowWidth = 1920, height: windowHeight = 1080 } =
     useWindowSize();

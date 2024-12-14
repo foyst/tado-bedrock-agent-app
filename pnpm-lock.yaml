@@ -101,6 +101,9 @@ dependencies:
   next-themes:
     specifier: ^0.3.0
     version: 0.3.0(react-dom@19.0.0-rc-66855b96-20241106)(react@19.0.0-rc-66855b96-20241106)
+  node-tado-client:
+    specifier: ^0.21.3
+    version: 0.21.3
   orderedmap:
     specifier: ^2.1.1
     version: 2.1.1
@@ -5177,6 +5180,16 @@ packages:
   /node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
+    dev: false
+
+  /node-tado-client@0.21.3:
+    resolution: {integrity: sha512-7sh+R3yjJisWkuxjv1k99XG5KKNShJhxFtPx7EP1uBBG3Q4/TjOus9fJZ+b/vz+jOFJzA5KqhiscgPOM0sz1uQ==}
+    dependencies:
+      axios: 1.7.9
+      simple-oauth2: 5.1.0
+    transitivePeerDependencies:
+      - debug
+      - supports-color
     dev: false
 
   /normalize-path@3.0.0:
