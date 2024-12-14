@@ -5,6 +5,7 @@ import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
   InvokeAgentRequest,
+  ResponseStream,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import { Tado } from "node-tado-client";
 
@@ -52,19 +53,42 @@ export async function processPrompt(chatId: string, input: string) {
     throw new Error("Completion is undefined");
   }
 
-  let completion = "";
+  const completion = await processResponseCompletion(
+    agentInput,
+    response.completion
+  );
 
-  for await (const chunkEvent of response.completion) {
+  return completion;
+}
+
+async function processResponseCompletion(
+  agentInput: InvokeAgentRequest,
+  chunks: AsyncIterable<ResponseStream>
+): Promise<string | undefined> {
+  for await (const chunkEvent of chunks) {
     if (chunkEvent.returnControl !== undefined) {
-      console.log("Return control event received");
-      console.log(chunkEvent.returnControl);
-
       const apiInvocationInput =
         chunkEvent.returnControl.invocationInputs![0].apiInvocationInput!;
       const url = "/api/v2" + apiInvocationInput.apiPath!;
-      const parameterisedUrl = url.replace("{homeId}", process.env.HOME_ID!);
+
+      const apiParameters = apiInvocationInput.parameters!;
+
+      apiParameters.unshift({
+        name: "homeId",
+        value: process.env.HOME_ID!,
+      });
+
+      const parameterisedUrl = apiParameters.reduce(
+        (url, parameter) =>
+          url.replace(`{${parameter.name}}`, parameter.value!),
+        url
+      );
+
       const method = apiInvocationInput.httpMethod! as "GET" | "POST";
       const data = {};
+
+      console.log("Calling Tado API with: ", parameterisedUrl, method, data);
+
       const response = await tadoClient.apiCall(parameterisedUrl, method, data);
 
       const agentInputWithTadoResponse: InvokeAgentRequest = {
@@ -77,7 +101,7 @@ export async function processPrompt(chatId: string, input: string) {
               apiResult: {
                 // ApiResult
                 actionGroup: apiInvocationInput.actionGroup, // required
-                agentId: agentId,
+                agentId: agentInput.agentId,
                 apiPath: apiInvocationInput.apiPath,
                 confirmationState: "CONFIRM",
                 httpMethod: apiInvocationInput.httpMethod,
@@ -97,17 +121,20 @@ export async function processPrompt(chatId: string, input: string) {
       const command = new InvokeAgentCommand(agentInputWithTadoResponse);
       const updatedResponse = await bedrockClient.send(command);
 
-      console.log("response from agent", updatedResponse);
-      break;
+      const finalResponse = await processResponseCompletion(
+        agentInputWithTadoResponse,
+        updatedResponse.completion!
+      );
+
+      if (finalResponse !== undefined) {
+        return finalResponse;
+      }
     }
 
     const chunk = chunkEvent.chunk;
     console.log(chunk);
     if (chunk !== undefined) {
-      const decodedResponse = new TextDecoder("utf-8").decode(chunk!.bytes);
-      completion += decodedResponse;
+      return new TextDecoder("utf-8").decode(chunk!.bytes);
     }
   }
-
-  return completion;
 }
