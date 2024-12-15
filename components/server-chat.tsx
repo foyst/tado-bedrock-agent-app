@@ -41,7 +41,8 @@ export async function processPrompt(chatId: string, input: string) {
   const agentId = "NA6YAHIZYV";
   const agentInput: InvokeAgentRequest = {
     agentId: agentId,
-    agentAliasId: "SCDHRJKTIV",
+    // agentAliasId: "SCDHRJKTIV",
+    agentAliasId: "TSTALIASID",
     sessionId: chatId,
     inputText: input,
   };
@@ -85,10 +86,10 @@ async function processResponseCompletion(
       );
 
       const method = apiInvocationInput.httpMethod! as "GET" | "POST";
-      const data = {};
 
+      console.log("Preparing Tado API request for: ", parameterisedUrl, method);
+      const data = processTadoRequestBody(apiInvocationInput.requestBody!);
       console.log("Calling Tado API with: ", parameterisedUrl, method, data);
-
       const response = await tadoClient.apiCall(parameterisedUrl, method, data);
 
       const agentInputWithTadoResponse: InvokeAgentRequest = {
@@ -137,4 +138,26 @@ async function processResponseCompletion(
       return new TextDecoder("utf-8").decode(chunk!.bytes);
     }
   }
+}
+
+function processTadoRequestBody(requestBody: { [key: string]: any }): any {
+  if (requestBody === undefined) {
+    return {};
+  }
+
+  const result: Record<string, any> = {};
+  const properties: [] =
+    requestBody["content"]["application/json"]["properties"];
+
+  console.log("Bedrock-generated properties are: ", properties);
+
+  properties.forEach((property) => {
+    if (property["type"] === "object") {
+      result[property["name"]] = JSON.parse(property["value"]);
+    } else {
+      result[property["name"]] = property["value"];
+    }
+  });
+
+  return result;
 }
