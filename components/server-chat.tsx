@@ -13,8 +13,8 @@ const tadoClient = new Tado();
 
 try {
   await tadoClient.login(
-    process.env.NEXT_PUBLIC_TADO_USERNAME!,
-    process.env.NEXT_PUBLIC_TADO_PASSWORD!
+    process.env.TADO_USERNAME!,
+    process.env.TADO_PASSWORD!
   );
 } catch (error) {
   console.error("Error logging in: ", error);
@@ -31,17 +31,15 @@ export async function ChatServerComponent() {
 const bedrockClient = new BedrockAgentRuntimeClient({
   region: "us-east-1",
   credentials: {
-    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY!,
-    sessionToken: process.env.NEXT_PUBLIC_AWS_SESSION_TOKEN!,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    sessionToken: process.env.AWS_SESSION_TOKEN!,
   },
 });
 
 export async function processPrompt(chatId: string, input: string) {
-  const agentId = "NA6YAHIZYV";
   const agentInput: InvokeAgentRequest = {
-    agentId: agentId,
-    // agentAliasId: "SCDHRJKTIV",
+    agentId: process.env.AGENT_ID!,
     agentAliasId: "TSTALIASID",
     sessionId: chatId,
     inputText: input,
@@ -87,10 +85,28 @@ async function processResponseCompletion(
 
       const method = apiInvocationInput.httpMethod! as "GET" | "POST";
 
-      console.log("Preparing Tado API request for: ", parameterisedUrl, method);
       const data = processTadoRequestBody(apiInvocationInput.requestBody!);
-      console.log("Calling Tado API with: ", parameterisedUrl, method, data);
-      const response = await tadoClient.apiCall(parameterisedUrl, method, data);
+
+      console.log(
+        "Preparing Tado API request for: ",
+        parameterisedUrl.replace(process.env.HOME_ID!, "<REDACTED>"),
+        method,
+        data
+      );
+
+      let response;
+      try {
+        response = await tadoClient.apiCall(parameterisedUrl, method, data);
+      } catch (error) {
+        console.error("Error calling Tado API: ", error);
+        console.error(
+          "Failed Tado API call details: ",
+          parameterisedUrl,
+          method,
+          data
+        );
+        return "There was an error calling the Tado API";
+      }
 
       const agentInputWithTadoResponse: InvokeAgentRequest = {
         ...agentInput,
@@ -133,7 +149,6 @@ async function processResponseCompletion(
     }
 
     const chunk = chunkEvent.chunk;
-    console.log(chunk);
     if (chunk !== undefined) {
       return new TextDecoder("utf-8").decode(chunk!.bytes);
     }
@@ -149,7 +164,7 @@ function processTadoRequestBody(requestBody: { [key: string]: any }): any {
   const properties: [] =
     requestBody["content"]["application/json"]["properties"];
 
-  console.log("Bedrock-generated properties are: ", properties);
+  // console.log("Bedrock-generated properties are: ", properties);
 
   properties.forEach((property) => {
     if (property["type"] === "object") {
