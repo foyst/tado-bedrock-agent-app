@@ -44,7 +44,7 @@ resource "aws_iam_role_policy" "bedrock_agent_model_policy" {
 }
 
 resource "aws_bedrockagent_agent" "home_heating_agent" {
-  agent_name              = "Home-Heating-Agent-Terraformd"
+  agent_name              = "Home-Heating-Agent"
   agent_resource_role_arn = aws_iam_role.bedrock_agent_tado_heating.arn
   description             = "An agent capable of controlling a Tado home heating system"
   foundation_model        = data.aws_bedrock_foundation_model.foundation_model.model_id
