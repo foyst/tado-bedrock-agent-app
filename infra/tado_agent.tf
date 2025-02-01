@@ -1,9 +1,10 @@
 data "aws_bedrock_foundation_model" "foundation_model" {
-  model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+  # model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+  model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
 }
 
 # Agent resource role
-resource "aws_iam_role" "bedrock_agent" {
+resource "aws_iam_role" "bedrock_agent_tado_heating" {
   name = "AmazonBedrockExecutionRoleForAgents_TadoHeatingAgent"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -27,9 +28,24 @@ resource "aws_iam_role" "bedrock_agent" {
   })
 }
 
+resource "aws_iam_role_policy" "bedrock_agent_model_policy" {
+  name = "AmazonBedrockAgentBedrockFoundationModelPolicy_TadoHeatingAgent"
+  role = aws_iam_role.bedrock_agent_tado_heating.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "bedrock:InvokeModel"
+        Effect   = "Allow"
+        Resource = "arn:${local.partition}:bedrock:${local.region}::foundation-model/${data.aws_bedrock_foundation_model.foundation_model.model_id}"
+      },
+    ]
+  })
+}
+
 resource "aws_bedrockagent_agent" "home_heating_agent" {
-  agent_name              = "Home-Heating-Agent"
-  agent_resource_role_arn = aws_iam_role.bedrock_agent.arn
+  agent_name              = "Home-Heating-Agent-Terraformd"
+  agent_resource_role_arn = aws_iam_role.bedrock_agent_tado_heating.arn
   description             = "An agent capable of controlling a Tado home heating system"
   foundation_model        = data.aws_bedrock_foundation_model.foundation_model.model_id
   instruction             = "You are a home heating assistant, capable of controlling the heating in a home. The user will make requests for you to alter the heating. You should identify what parameters you need to fulfil a request, and what function calls you need to make. You may need to chain multiple function calls together within a single request to get all the data needed to fulfil the request."
