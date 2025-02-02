@@ -8,7 +8,6 @@ import {
   RetrieveCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import { AccessToken } from "simple-oauth2";
-import { Tado } from "@/lib/tado/tado";
 import { processPrompt } from "@/components/server-chat";
 
 export function useTadoBedrockAgent() {

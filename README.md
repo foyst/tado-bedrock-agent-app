@@ -1,9 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tado Heating AWS Bedrock Agent demo
+
+This is a fork of https://github.com/vercel/ai-chatbot, modded (badly) to work with AWS Bedrock and the Tado heating API
+
+Once setup, you can open the chatbot interface on http://localhost:3000 and ask it questions about your heating system or issue commands.
+
+Some of the prompts that work include:
+* Get all of the rooms in my house. Create a table with 3 columns: Room Name, Current Temperature, Target Temperature. Create a row for each room, displaying those 3 attributes for each
+* Get the current and target temperatures for my bedroom, kitchen and living room, and present them in a bullet list
+* Set the temperature in my living room to 15 degrees celsius.
+* Knock the temperature up in my bedroom by a couple of degrees more than it currently is please
+* Please set my kitchen temperature to 14 degrees celsius, and my living room to 15 degrees celsius
+* What’s the current and target temperature for my living room?
 
 ## Getting Started
+Create a copy of the `.env.example` file and rename it to `.env.local`
 
-First, run the development server:
+### Get your Tado Home ID
+Navigate to `https://app.tado.com/` and login with your credentials
 
+Open the developer tools of your chosen browser and go to the network requests.
+Look at any of the made API calls and note your Home ID (in this format `https://my.tado.com/api/v2/homes/{YOUR_HOME_ID}/...`)
+Add this as your `HOME_ID` in the `.env.local` file
+
+### Deploy your Bedrock Agent in AWS
+Use the Terrform files in `./infra` to deploy your own instance of a Tado AWS Bedrock Agent.
+```
+cd ./infra
+terraform deploy
+```
+
+Once deployed, go into the Bedrock Agent Console and make a note of the Agent ID:
+![Bedrock Agent ID](./images/bedrock-agent-id.png)
+
+### Get some temporary creds to use in the chat client
+Currently just uses temporary STS creds to communicate with AWS. Definitely not best practice but works for this demo.
+
+Store these credentials within the `.env.local` file
+
+### Build and run the chat client
+Install dependencies and run using your favourite node package manager
 ```bash
 npm run dev
 # or
@@ -14,23 +49,5 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Start chatting!
+Open [http://localhost:3000](http://localhost:3000) with your browser and start talking to your heating system!
