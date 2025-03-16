@@ -2,6 +2,7 @@
 
 import { Chat } from "./chat";
 import {
+  ApiInvocationInput,
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
   InvokeAgentRequest,
@@ -38,12 +39,12 @@ const bedrockClient = new BedrockAgentRuntimeClient({
 });
 
 export async function processPrompt(chatId: string, input: string) {
-  
+
   const inputWithSystemPrompt = `My home id is ${process.env.HOME_ID}. ` + input;
-  
+
   const agentInput: InvokeAgentRequest = {
     agentId: process.env.AGENT_ID!,
-    agentAliasId: "TSTALIASID",
+    agentAliasId: "TSTALIASID", // Test alias ID allows for testing without creating a new alias
     sessionId: chatId,
     inputText: inputWithSystemPrompt,
   };
@@ -63,6 +64,19 @@ export async function processPrompt(chatId: string, input: string) {
   return completion;
 }
 
+/**
+ * Controls the interaction between the agent and the Tado API.
+ * 
+ * @param agentInput - The input request for invoking the agent.
+ * @param chunks - An asynchronous iterable of response stream chunks.
+ * @returns A promise that resolves to a string containing the final response or undefined.
+ * 
+ * This function performs the following steps:
+ * 1. Takes the agent returnControl invocation inputs and constructs the Tado API request.
+ * 2. Sends the Tado API request
+ * 3. Sends the response back to the agent.
+ * 4. If necessary, recursively calls this function with additional API calls to make
+ */
 async function processResponseCompletion(
   agentInput: InvokeAgentRequest,
   chunks: AsyncIterable<ResponseStream>
@@ -71,81 +85,48 @@ async function processResponseCompletion(
     if (chunkEvent.returnControl !== undefined) {
       const apiInvocationInput =
         chunkEvent.returnControl.invocationInputs![0].apiInvocationInput!;
-      const url = "/api/v2" + apiInvocationInput.apiPath!;
 
+      const url = "/api/v2" + apiInvocationInput.apiPath!;
       const apiParameters = apiInvocationInput.parameters!;
+      const tadoRequestHttpMethod = apiInvocationInput.httpMethod! as "GET" | "POST";
 
       apiParameters.unshift({
         name: "homeId",
         value: process.env.HOME_ID!,
       });
 
-      const parameterisedUrl = apiParameters.reduce(
+      const tadoRequestParameterisedUrl = apiParameters.reduce(
         (url, parameter) =>
           url.replace(`{${parameter.name}}`, parameter.value!),
         url
       );
 
-      const method = apiInvocationInput.httpMethod! as "GET" | "POST";
-
-      let response;
-      let data;
+      let tadoResponse;
+      let tadoRequestBody;
       try {
-        data = processTadoRequestBody(apiInvocationInput.requestBody!);
+        tadoRequestBody = processTadoRequestBody(apiInvocationInput.requestBody!);
       } catch (error) {
         console.error("Error parsing JSON: ", error);
-        response = { error: "The JSON was malformed" };
+        // We fake a response from Tado, telling the agent that the JSON was malformed
+        tadoResponse = { error: "The JSON was malformed" };
       }
 
-      if (data !== undefined) {
-        console.log(
-          "Preparing Tado API request for: ",
-          parameterisedUrl.replace(process.env.HOME_ID!, "<REDACTED>"),
-          method,
-          data
-        );
-  
+      if (tadoRequestBody !== undefined) {
         try {
-          response = await tadoClient.apiCall(parameterisedUrl, method, data);
+          tadoResponse = await makeTadoApiCall(tadoRequestParameterisedUrl, tadoRequestHttpMethod, tadoRequestBody)
         } catch (error) {
-          console.error("Error calling Tado API: ", error);
-          console.error("Failed Tado API call details: ", parameterisedUrl, method, data
-          );
           return "There was an error calling the Tado API";
-        }  
+        }
       }
-      
-      console.debug("Tado API response: ", JSON.stringify(response));
 
-      const agentInputWithTadoResponse: InvokeAgentRequest = {
-        ...agentInput,
-        sessionState: {
-          returnControlInvocationResults: [
-            {
-              apiResult: {
-                actionGroup: apiInvocationInput.actionGroup,
-                agentId: agentInput.agentId,
-                apiPath: apiInvocationInput.apiPath,
-                confirmationState: "CONFIRM",
-                httpMethod: apiInvocationInput.httpMethod,
-                httpStatusCode: 200,
-                responseBody: {
-                  TEXT: {
-                    body: JSON.stringify(response),
-                  },
-                },
-              },
-            },
-          ],
-          invocationId: chunkEvent.returnControl.invocationId,
-        },
-      };
+      const postTadoAgentResponse: InvokeAgentRequest =
+        createPostTadoAgentResponse(agentInput, apiInvocationInput, tadoResponse, chunkEvent);
 
-      const command = new InvokeAgentCommand(agentInputWithTadoResponse);
+      const command = new InvokeAgentCommand(postTadoAgentResponse);
       const updatedResponse = await bedrockClient.send(command);
 
       const finalResponse = await processResponseCompletion(
-        agentInputWithTadoResponse,
+        postTadoAgentResponse,
         updatedResponse.completion!
       );
 
@@ -181,4 +162,57 @@ function processTadoRequestBody(requestBody: { [key: string]: any }): any {
   });
 
   return result;
+}
+
+async function makeTadoApiCall(
+  url: string,
+  method: "GET" | "POST",
+  requestBody: Record<string, any>
+) {
+  console.log(
+    "Preparing Tado API request for: ",
+    url.replace(process.env.HOME_ID!, "<REDACTED>"),
+    method,
+    requestBody
+  );
+
+  try {
+    const tadoResponse = await tadoClient.apiCall(url, method, requestBody);
+    console.debug("Tado API response: ", JSON.stringify(tadoResponse));
+    return tadoResponse;
+  } catch (error) {
+    console.error("Error calling Tado API: ", error);
+    console.error("Failed Tado API call details: ", url, method, requestBody
+    );
+    throw error;
+  }
+}
+
+function createPostTadoAgentResponse(agentInput: InvokeAgentRequest,
+  apiInvocationInput: ApiInvocationInput,
+  tadoResponse: any,
+  chunkEvent: ResponseStream.ReturnControlMember): InvokeAgentRequest {
+  return {
+    ...agentInput,
+    sessionState: {
+      returnControlInvocationResults: [
+        {
+          apiResult: {
+            actionGroup: apiInvocationInput.actionGroup,
+            agentId: agentInput.agentId,
+            apiPath: apiInvocationInput.apiPath,
+            confirmationState: "CONFIRM",
+            httpMethod: apiInvocationInput.httpMethod,
+            httpStatusCode: 200,
+            responseBody: {
+              TEXT: {
+                body: JSON.stringify(tadoResponse),
+              },
+            },
+          },
+        },
+      ],
+      invocationId: chunkEvent.returnControl.invocationId,
+    },
+  };
 }

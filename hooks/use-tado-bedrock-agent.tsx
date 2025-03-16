@@ -17,8 +17,6 @@ export function useTadoBedrockAgent() {
   const chatId = uuidv4();
 
   const handleSubmit = async () => {
-    console.log("submit!!");
-    console.log("input is: ", input);
     append({
       role: "user",
       content: input,
