@@ -48,7 +48,7 @@ resource "aws_bedrockagent_agent" "home_heating_agent" {
   agent_resource_role_arn = aws_iam_role.bedrock_agent_tado_heating.arn
   description             = "An agent capable of controlling a Tado home heating system"
   foundation_model        = data.aws_bedrock_foundation_model.foundation_model.model_id
-  instruction             = "You are a home heating assistant, capable of controlling the heating in a home. The user will make requests for you to alter the heating. You should identify what parameters you need to fulfil a request, and what function calls you need to make. You may need to chain multiple function calls together within a single request to get all the data needed to fulfil the request."
+  instruction             = "You are a home heating assistant, capable of controlling the heating in a home. The user will make requests for you to alter the heating. You should identify what parameters you need to fulfil a request, and what function calls you need to make. You may need to chain multiple function calls together within a single request to get all the data needed to fulfil the request. Make sure any requests you make have well formed json payloads."
 }
 
 resource "aws_bedrockagent_agent_action_group" "home_heating_agent_action_group" {

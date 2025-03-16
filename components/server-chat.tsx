@@ -38,11 +38,14 @@ const bedrockClient = new BedrockAgentRuntimeClient({
 });
 
 export async function processPrompt(chatId: string, input: string) {
+  
+  const inputWithSystemPrompt = `My home id is ${process.env.HOME_ID}. ` + input;
+  
   const agentInput: InvokeAgentRequest = {
     agentId: process.env.AGENT_ID!,
     agentAliasId: "TSTALIASID",
     sessionId: chatId,
-    inputText: input,
+    inputText: inputWithSystemPrompt,
   };
 
   const command = new InvokeAgentCommand(agentInput);
@@ -85,39 +88,42 @@ async function processResponseCompletion(
 
       const method = apiInvocationInput.httpMethod! as "GET" | "POST";
 
-      const data = processTadoRequestBody(apiInvocationInput.requestBody!);
-
-      console.log(
-        "Preparing Tado API request for: ",
-        parameterisedUrl.replace(process.env.HOME_ID!, "<REDACTED>"),
-        method,
-        data
-      );
-
       let response;
+      let data;
       try {
-        response = await tadoClient.apiCall(parameterisedUrl, method, data);
+        data = processTadoRequestBody(apiInvocationInput.requestBody!);
       } catch (error) {
-        console.error("Error calling Tado API: ", error);
-        console.error(
-          "Failed Tado API call details: ",
-          parameterisedUrl,
+        console.error("Error parsing JSON: ", error);
+        response = { error: "The JSON was malformed" };
+      }
+
+      if (data !== undefined) {
+        console.log(
+          "Preparing Tado API request for: ",
+          parameterisedUrl.replace(process.env.HOME_ID!, "<REDACTED>"),
           method,
           data
         );
-        return "There was an error calling the Tado API";
+  
+        try {
+          response = await tadoClient.apiCall(parameterisedUrl, method, data);
+        } catch (error) {
+          console.error("Error calling Tado API: ", error);
+          console.error("Failed Tado API call details: ", parameterisedUrl, method, data
+          );
+          return "There was an error calling the Tado API";
+        }  
       }
+      
+      console.debug("Tado API response: ", JSON.stringify(response));
 
       const agentInputWithTadoResponse: InvokeAgentRequest = {
         ...agentInput,
         sessionState: {
           returnControlInvocationResults: [
-            // ReturnControlInvocationResults
             {
-              // InvocationResultMember Union: only one key present
               apiResult: {
-                // ApiResult
-                actionGroup: apiInvocationInput.actionGroup, // required
+                actionGroup: apiInvocationInput.actionGroup,
                 agentId: agentInput.agentId,
                 apiPath: apiInvocationInput.apiPath,
                 confirmationState: "CONFIRM",
@@ -160,11 +166,11 @@ function processTadoRequestBody(requestBody: { [key: string]: any }): any {
     return {};
   }
 
+  console.debug("Request body is: ", requestBody);
+
   const result: Record<string, any> = {};
   const properties: [] =
     requestBody["content"]["application/json"]["properties"];
-
-  // console.log("Bedrock-generated properties are: ", properties);
 
   properties.forEach((property) => {
     if (property["type"] === "object") {
