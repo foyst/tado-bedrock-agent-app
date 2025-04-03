@@ -8,18 +8,9 @@ import {
   InvokeAgentRequest,
   ResponseStream,
 } from "@aws-sdk/client-bedrock-agent-runtime";
-import { Tado } from "node-tado-client";
+import { Tado, Token } from "node-tado-client";
 
 const tadoClient = new Tado();
-
-try {
-  await tadoClient.login(
-    process.env.TADO_USERNAME!,
-    process.env.TADO_PASSWORD!
-  );
-} catch (error) {
-  console.error("Error logging in: ", error);
-}
 
 export async function ChatServerComponent() {
   return (
@@ -39,6 +30,16 @@ const bedrockClient = new BedrockAgentRuntimeClient({
 });
 
 export async function processPrompt(chatId: string, input: string) {
+
+  if (!tadoClient.token) {
+    const [verify, futureToken] = await tadoClient.authenticate();
+
+    if (verify) {
+      waitInBackgroundForUserAuth(futureToken)
+      return `Tado authentication required, please authenticate using this URL:
+  ${verify.verification_uri_complete}`
+    }
+  }
 
   const inputWithSystemPrompt = `My home id is ${process.env.HOME_ID}. ` + input;
 
@@ -62,6 +63,14 @@ export async function processPrompt(chatId: string, input: string) {
   );
 
   return completion;
+}
+
+function waitInBackgroundForUserAuth(futureToken: Promise<Token>) {
+  futureToken.then((token) => {
+    console.log("Tado authenticated!");
+  }).catch((error) => {
+    console.error("Error authenticating with Tado: ", error);
+  });
 }
 
 /**
