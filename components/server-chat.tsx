@@ -124,7 +124,14 @@ async function processResponseCompletion(
         try {
           tadoResponse = await makeTadoApiCall(tadoRequestParameterisedUrl, tadoRequestHttpMethod, tadoRequestBody)
         } catch (error) {
-          return "There was an error calling the Tado API";
+
+          console.error("Error calling Tado API: ", error);
+          console.error("Failed Tado API call details: ", url, tadoRequestHttpMethod, tadoRequestBody);
+
+          if (error.status === 422) {
+            // We fake a response from Tado, telling the agent that the JSON was malformed
+            tadoResponse = { error: "The JSON payload wasn't in the expected structure" };
+          } else throw error;
         }
       }
 
@@ -185,16 +192,9 @@ async function makeTadoApiCall(
     requestBody
   );
 
-  try {
-    const tadoResponse = await tadoClient.apiCall(url, method, requestBody);
-    console.debug("Tado API response: ", JSON.stringify(tadoResponse));
-    return tadoResponse;
-  } catch (error) {
-    console.error("Error calling Tado API: ", error);
-    console.error("Failed Tado API call details: ", url, method, requestBody
-    );
-    throw error;
-  }
+  const tadoResponse = await tadoClient.apiCall(url, method, requestBody);
+  console.debug("Tado API response: ", JSON.stringify(tadoResponse));
+  return tadoResponse;
 }
 
 function createPostTadoAgentResponse(agentInput: InvokeAgentRequest,
